@@ -749,13 +749,14 @@ class AiAgentSession(models.Model):
                     ]
                 )
             )
-        for message in messages:
-            text = html2plaintext(message.body or "").strip().lstrip("⏳").strip()
+            notes = [(message.id, message.body) for message in messages]
+        for message_id, body in notes:
+            text = html2plaintext(body or "").strip().lstrip("⏳").strip()
             if text == self.env._("Thinking..."):
-                self._ai_drop_note(thread, message.id)
+                self._ai_drop_note(thread, message_id)
             else:
                 self._ai_edit_note(
-                    thread, message.id, self.env._("❌ %s (interrupted)", text)
+                    thread, message_id, self.env._("❌ %s (interrupted)", text)
                 )
 
     def _post_note(self, thread, body):
