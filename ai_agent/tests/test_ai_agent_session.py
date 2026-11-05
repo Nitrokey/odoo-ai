@@ -84,6 +84,27 @@ class TestAiAgentSession(AiAgentCase):
         )
         self.assertTrue(session)
 
+    def test_answer_on_document_is_an_internal_note(self):
+        document = self.env["ai.agent.test.document"].create({"name": "Doc"})
+        document.with_user(self.human).message_post(
+            body="hola",
+            partner_ids=[self.agent_user.partner_id.id],
+            message_type="comment",
+            subtype_xmlid="mail.mt_note",
+        )
+        self._run_worker()
+        answer = self._comments(document)[-1]
+        self.assertEqual(answer.author_id, self.agent_user.partner_id)
+        self.assertEqual(answer.subtype_id, self.env.ref("mail.mt_note"))
+
+    def test_answer_in_discuss_is_a_message(self):
+        channel = self._create_agent_channel()
+        self._post(channel, "Hola agente")
+        self._run_worker()
+        answer = self._comments(channel)[-1]
+        self.assertEqual(answer.author_id, self.agent_user.partner_id)
+        self.assertEqual(answer.subtype_id, self.env.ref("mail.mt_comment"))
+
     def test_document_message_without_mention_does_not_trigger(self):
         document = self.env["ai.agent.test.document"].create({"name": "Doc"})
         document.with_user(self.human).message_post(

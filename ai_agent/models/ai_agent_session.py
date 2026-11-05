@@ -329,10 +329,11 @@ class AiAgentSession(models.Model):
         """
         for _try in range(MAX_STATE_WRITE_TRIES):
             try:
-                self._get_thread().with_user(self.agent_id.user_id).message_post(
+                thread = self._get_thread()
+                thread.with_user(self.agent_id.user_id).message_post(
                     body=self._ai_markdown_to_html(answer),
                     message_type="comment",
-                    subtype_xmlid="mail.mt_comment",
+                    subtype_xmlid=self._ai_answer_subtype_xmlid(thread),
                 )
                 self._commit()
                 return True
@@ -340,6 +341,14 @@ class AiAgentSession(models.Model):
                 self.env.cr.rollback()
         self._fail(self.env._("Could not post the answer of the agent"))
         return False
+
+    @api.model
+    def _ai_answer_subtype_xmlid(self, thread):
+        """Subtype of the answers: a message in Discuss, an internal note on
+        the chatter of a document, never sent to its external followers."""
+        if thread._name == "discuss.channel":
+            return "mail.mt_comment"
+        return "mail.mt_note"
 
     def _ai_start_turn(self):
         """The turn in progress of the session: going on, or a new one."""
