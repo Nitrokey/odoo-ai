@@ -330,7 +330,7 @@ class AiAgentSession(models.Model):
         for _try in range(MAX_STATE_WRITE_TRIES):
             try:
                 thread = self._get_thread()
-                thread.with_user(self.agent_id.user_id).message_post(
+                self._ai_as_agent(thread).message_post(
                     body=self._ai_markdown_to_html(answer),
                     message_type="comment",
                     subtype_xmlid=self._ai_answer_subtype_xmlid(thread),
@@ -422,12 +422,28 @@ class AiAgentSession(models.Model):
                 self.sudo().turn_ids.unlink()
                 thread = self._get_thread()
                 if thread:
-                    self._ai_close_pending_notes(thread)
-                    self._post_note(thread, self.env._("⚠️ The agent failed: %s", error))
+                    self._ai_notify_failure(thread, error)
                 self._commit()
                 return
             except PG_CONCURRENCY_EXCEPTIONS_TO_RETRY:
                 self.env.cr.rollback()
+
+    def _ai_notify_failure(self, thread, error):
+        """Tell the failure in the conversation, if possible: the session is
+        left in error even when its notes can not be posted, never blocking
+        the queue of the worker."""
+        try:
+            with self.env.cr.savepoint():
+                self._ai_close_pending_notes(thread)
+                self._post_note(thread, self.env._("⚠️ The agent failed: %s", error))
+        except PG_CONCURRENCY_EXCEPTIONS_TO_RETRY:
+            raise
+        except Exception:
+            _logger.warning(
+                "Could not post the failure of AI agent session %s",
+                self.id,
+                exc_info=True,
+            )
 
     @api.model
     def _cron_time_limit(self):
@@ -768,9 +784,15 @@ class AiAgentSession(models.Model):
                     thread, message_id, self.env._("❌ %s (interrupted)", text)
                 )
 
+    def _ai_as_agent(self, thread):
+        """The thread to post on as the agent, whatever its access rights:
+        the user it answers to has access to the thread, not always the
+        agent."""
+        return thread.with_user(self.agent_id.user_id).sudo()
+
     def _post_note(self, thread, body):
         """Post a note of the agent, kept out of the AI history."""
-        return thread.with_user(self.agent_id.user_id).message_post(
+        return self._ai_as_agent(thread).message_post(
             body=body,
             message_type="notification",
             subtype_xmlid="mail.mt_note",
