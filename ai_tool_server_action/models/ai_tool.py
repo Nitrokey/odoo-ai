@@ -14,7 +14,12 @@ class AiTool(models.Model):
         selection_add=[("server_action", "Server Action")],
         ondelete={"server_action": "cascade"},
     )
-    model_id = fields.Many2one(required=False)
+    model_id = fields.Many2one(
+        required=False,
+        compute="_compute_model_id",
+        store=True,
+        precompute=True,
+    )
     function_name = fields.Char(required=False)
 
     server_action_id = fields.Many2one(
@@ -59,6 +64,16 @@ class AiTool(models.Model):
                             tool_name=tool.name,
                         )
                     )
+
+    @api.depends("kind", "server_action_id.model_id")
+    def _compute_model_id(self):
+        """The model of the server action: the tool is offered to the AI
+        prompts and agents working on records of that model."""
+        for tool in self:
+            if tool.kind == "server_action":
+                tool.model_id = tool.server_action_id.model_id
+            else:
+                tool.model_id = tool.model_id
 
     def _get_tool_definition(self):
         if self.kind == "server_action":

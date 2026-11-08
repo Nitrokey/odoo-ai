@@ -50,11 +50,23 @@ action = {
         )
 
     def test_tool_creation(self):
-        """Test that the tool is correctly created without model_id and function_name"""
+        """Test that the tool is correctly created with the model of the server
+        action and without function_name"""
         self.assertEqual(self.ai_tool.kind, "server_action")
         self.assertEqual(self.ai_tool.server_action_id, self.server_action)
-        self.assertFalse(self.ai_tool.model_id)
+        self.assertEqual(self.ai_tool.model_id, self.server_action.model_id)
         self.assertFalse(self.ai_tool.function_name)
+
+    def test_tool_model_follows_server_action(self):
+        """Test that the model of the tool follows its server action, so it is
+        offered for the records of that model"""
+        model_users = self.env.ref("base.model_res_users")
+        self.server_action.model_id = model_users
+        self.assertEqual(self.ai_tool.model_id, model_users)
+        self.assertIn(
+            self.ai_tool,
+            self.env["ai.tool"].search([("model_id", "=", model_users.id)]),
+        )
 
     def test_get_tool_definition(self):
         """Test that _get_tool_definition correctly parses JSON schemas"""
@@ -199,6 +211,8 @@ action = {
         wizard.action_apply()
         self.assertTrue(new_action.ai_tool_id)
         self.assertEqual(new_action.ai_tool_id.name, "New Tool")
+        self.assertEqual(new_action.ai_tool_id.model_id, new_action.model_id)
+        self.assertEqual(new_action.ai_tool_server_ids, new_action.ai_tool_id)
 
     def test_wizard_action_apply_update(self):
         """Test wizard updating an existing ai.tool"""
