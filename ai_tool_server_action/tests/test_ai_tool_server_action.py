@@ -92,6 +92,15 @@ action = {
         self.assertEqual(result.get("status"), "ok")
         self.assertEqual(result.get("received_query"), "test_query")
 
+    def test_execute_tool_as_user(self):
+        """Users without access to the models (ir.model) and the server
+        actions can use the tool, allowed by the groups of the action"""
+        self.server_action.groups_id = self.env.ref("base.group_user")
+        tool = self.ai_tool.with_user(self.demo_user)
+        self.assertEqual(tool._get_tool_definition()["name"], tool.name)
+        result = tool._execute_tool(query="test_query")
+        self.assertEqual(result.get("received_query"), "test_query")
+
     def test_execute_tool_no_dict_return(self):
         """Test that _execute_tool handles server actions that do not return a dict"""
         server_action_empty = self.env["ir.actions.server"].create(

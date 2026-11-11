@@ -105,7 +105,9 @@ class AiTool(models.Model):
             active_model = (
                 record._name
                 if record
-                else kwargs.get("active_model", self.server_action_id.model_id.model)
+                else kwargs.get(
+                    "active_model", self.server_action_id.sudo().model_id.model
+                )
             )
             active_ids = [active_id] if active_id else kwargs.get("active_ids", [])
 
