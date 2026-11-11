@@ -35,8 +35,14 @@ class AiTool(models.Model):
         default="record",
     )
 
+    def _ai_tool_model_name(self):
+        """The model of the tool. Read with sudo: users using the tools can
+        not read the models (ir.model), only admins can."""
+        self.ensure_one()
+        return self.sudo().model_id.model
+
     def _get_tool_definition(self):
-        func = getattr(self.env[self.model_id.model], self.function_name)
+        func = getattr(self.env[self._ai_tool_model_name()], self.function_name)
         return {
             "name": self.name,
             "description": self.description,
@@ -76,19 +82,17 @@ class AiTool(models.Model):
         return plaintext2html(message)
 
     def _execute_tool(self, *args, record=None, **kwargs):
+        model_name = self._ai_tool_model_name()
         if self.kind == "generic":
-            return getattr(self.env[self.model_id.model], self.function_name)(
-                *args, **kwargs
-            )
+            return getattr(self.env[model_name], self.function_name)(*args, **kwargs)
         if not record:
             raise ValueError("Record must be provided for non-generic tools")
         if self.kind == "generic_model":
-            return getattr(self.env[self.model_id.model], self.function_name)(
+            return getattr(self.env[model_name], self.function_name)(
                 *args, record=record, **kwargs
             )
-        elif record._name != self.model_id.model:
+        elif record._name != model_name:
             raise ValueError(
-                f"Record model {record._name} does not match tool "
-                f"model {self.model_id.model}"
+                f"Record model {record._name} does not match tool model {model_name}"
             )
         return getattr(record, self.function_name)(*args, **kwargs) or {}

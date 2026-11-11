@@ -11,6 +11,25 @@ class TestAiTool(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.partner = cls.env["res.partner"].create({"name": "Test Partner"})
+        cls.user = (
+            cls.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "AI Tool User",
+                    "login": "ai_tool_user",
+                    "groups_id": [(6, 0, [cls.env.ref("base.group_user").id])],
+                }
+            )
+        )
+
+    def test_tool_as_user(self):
+        """Users without access to the models (ir.model) can use the tools"""
+        tool = self.env.ref("ai_tool.current_date").with_user(self.user)
+        definition = tool._get_tool_definition()
+        self.assertEqual(definition["inputSchema"]["type"], "object")
+        with freeze_time("2024-01-01"):
+            self.assertEqual(tool._execute_tool(record=tool)["date"], "2024-01-01")
 
     def test_tool(self):
         definition = self.env.ref("ai_tool.current_date")._get_tool_definition()
